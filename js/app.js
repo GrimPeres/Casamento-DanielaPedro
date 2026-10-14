@@ -20,7 +20,48 @@ $('back-home').addEventListener('click',()=>{stop();shot=null;home();visible('ph
 function line(ctx,x,y,w,h,color){ctx.fillStyle=color;ctx.fillRect(x,y,w,h)}
 function drawLogo(ctx,cx,cy,w,h){if(!logo)return;const ratio=560.71/407.6;const lw=Math.min(w,h*ratio),lh=lw/ratio;ctx.drawImage(logo,cx-lw/2,cy-lh/2,lw,lh)}
 function words(ctx,s,x,y,size,color){ctx.textAlign='center';ctx.fillStyle=color;ctx.font='italic '+Math.round(size)+'px Georgia,serif';ctx.fillText(s,x,y)}
-function render(){if(!shot)return;const w=shot.width,h=shot.height;let c=canvas,ctx=c.getContext('2d');const wide=w>h,unit=Math.min(w,h);const band=Math.max(unit*.18,h*.13);c.width=w;c.height=h;ctx=c.getContext('2d');ctx.drawImage(shot,0,0);if(frame==='classic'){line(ctx,0,h-band,w,band,'#f6e8df');line(ctx,0,h-band,w,Math.max(3,unit*.006),'#b27b5c');line(ctx,0,0,w,Math.max(3,unit*.009),'#b27b5c');const logoH=band*.72;drawLogo(ctx,w*.22,h-band*.51,logoH*1.35,logoH);words(ctx,'Daniela & Pedro',w*.68,h-band*.54,Math.min(unit*.047,band*.26),'#8f6248');ctx.textAlign='center';ctx.font=Math.round(unit*.025)+'px Georgia';ctx.fillStyle='#8f6248';ctx.fillText('31 · 07 · 2027',w*.68,h-band*.28)}else if(frame==='polaroid'){const edge=unit*.065,bottom=Math.max(unit*.19,h*.16);line(ctx,0,0,w,edge,'#fffaf6');line(ctx,0,0,edge,h,'#fffaf6');line(ctx,w-edge,0,edge,h,'#fffaf6');line(ctx,0,h-bottom,w,bottom,'#fffaf6');drawLogo(ctx,w*.21,h-bottom*.49,bottom*.53,bottom*.53);words(ctx,'Daniela & Pedro',w*.68,h-bottom*.56,Math.min(unit*.048,bottom*.26),'#9b7058');ctx.textAlign='center';ctx.font=Math.round(unit*.023)+'px Georgia';ctx.fillStyle='#9b7058';ctx.fillText('31 de julho de 2027',w*.68,h-bottom*.31)}else if(frame==='minimal'){const pad=unit*.042;ctx.strokeStyle='#fff4e9';ctx.lineWidth=Math.max(3,unit*.006);ctx.strokeRect(pad,pad,w-2*pad,h-2*pad);const bh=Math.max(unit*.16,h*.12);ctx.fillStyle='rgba(50,35,28,.65)';ctx.fillRect(0,h-bh,w,bh);drawLogo(ctx,w*.2,h-bh*.5,bh*.62,bh*.62);words(ctx,'Daniela & Pedro',w*.68,h-bh*.52,Math.min(unit*.045,bh*.3),'#fff2e4');ctx.font=Math.round(unit*.024)+'px Georgia';ctx.fillStyle='#fff2e4';ctx.textAlign='center';ctx.fillText('31.07.2027',w*.68,h-bh*.24)}preview.src=c.toDataURL('image/jpeg',.87);preview.hidden=false;document.querySelectorAll('[data-frame]').forEach(b=>b.classList.toggle('selected',b.dataset.frame===frame));$('frame-name').textContent={classic:'Moldura clássica em cobre e champanhe',polaroid:'Polaroid romântica',minimal:'Minimalista com monograma',none:'Fotografia sem moldura'}[frame]}
+function render(){
+ if(!shot)return;
+ const w=shot.width,h=shot.height,unit=Math.min(w,h),landscape=w>h;
+ canvas.width=w;canvas.height=h;
+ const ctx=canvas.getContext('2d');ctx.drawImage(shot,0,0,w,h);
+ // Todas as dimensões dependem da fotografia real: vertical, horizontal ou quadrada.
+ const footer=Math.round(Math.min(h*.27,Math.max(unit*.19,w*.135)));
+ const gap=Math.max(4,Math.round(unit*.018));
+ const textX=w*.68,logoX=w*.19;
+ const titleSize=Math.max(10,Math.min(unit*.052,footer*.28,w*.082));
+ const dateSize=Math.max(8,Math.min(unit*.028,footer*.17,w*.047));
+ function caption(titleColor,dateColor){
+   drawLogo(ctx,logoX,h-footer*.51,Math.min(w*.28,footer*.9),footer*.78);
+   ctx.textAlign='center';ctx.textBaseline='middle';
+   ctx.fillStyle=titleColor;ctx.font='italic '+Math.round(titleSize)+'px Georgia,serif';
+   ctx.fillText('Daniela & Pedro',textX,h-footer*.59,w*.57);
+   ctx.fillStyle=dateColor;ctx.font=Math.round(dateSize)+'px Georgia,serif';
+   ctx.fillText('31 · 07 · 2027',textX,h-footer*.3,w*.5);
+   ctx.textBaseline='alphabetic';
+ }
+ if(frame==='classic'){
+   line(ctx,0,h-footer,w,footer,'#f6e8df');
+   line(ctx,0,h-footer,w,Math.max(2,Math.round(unit*.005)),'#b27b5c');
+   line(ctx,0,0,w,Math.max(2,Math.round(unit*.007)),'#b27b5c');
+   caption('#8f6248','#8f6248');
+ }else if(frame==='polaroid'){
+   const edge=Math.min(unit*.055,h*.06);
+   line(ctx,0,0,w,edge,'#fffaf6');line(ctx,0,0,edge,h,'#fffaf6');line(ctx,w-edge,0,edge,h,'#fffaf6');
+   line(ctx,0,h-footer,w,footer,'#fffaf6');caption('#9b7058','#9b7058');
+ }else if(frame==='minimal'){
+   const pad=Math.max(3,unit*.035);
+   ctx.strokeStyle='#fff4e9';ctx.lineWidth=Math.max(2,unit*.005);
+   ctx.strokeRect(pad,pad,w-2*pad,h-2*pad);
+   // Faixa opaca para garantir leitura sobre fotografias claras ou escuras.
+   line(ctx,0,h-footer,w,footer,'#382c28');
+   caption('#fff2e4','#fff2e4');
+ }
+ preview.src=canvas.toDataURL('image/jpeg',.9);
+ preview.hidden=false;
+ document.querySelectorAll('[data-frame]').forEach(button=>button.classList.toggle('selected',button.dataset.frame===frame));
+ $('frame-name').textContent={classic:'Moldura clássica em cobre e champanhe',polaroid:'Polaroid romântica',minimal:'Minimalista com monograma',none:'Fotografia sem moldura'}[frame];
+}
 function download(c,name){c.toBlob(blob=>{if(!blob){note('Não foi possível preparar o ficheiro.');return}const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),15000)},'image/jpeg',.93)}
 $('start').addEventListener('click',start);$('native-start').addEventListener('click',openNative);$('flip').addEventListener('click',()=>{facing=facing==='environment'?'user':'environment';start()});$('snap').addEventListener('click',snap);$('close-camera').addEventListener('click',()=>{stop();home();note('Escolhe como queres tirar a fotografia.')});$('zoom').addEventListener('input',e=>setZoom(e.target.value));$('retry').addEventListener('click',()=>{shot=null;home();note('Vamos tirar outra fotografia?');if(mode==='web')start();else if(mode==='gallery')openGallery();else openNative()});
 view.addEventListener('click',async e=>{if(!stream)return;const track=stream.getVideoTracks()[0],caps=track.getCapabilities?.()||{};if(!caps.pointsOfInterest)return;const r=view.getBoundingClientRect(),x=(e.clientX-r.left)/r.width,y=(e.clientY-r.top)/r.height;const ring=$('focus-ring');ring.style.left=(x*100)+'%';ring.style.top=(y*100)+'%';ring.hidden=false;setTimeout(()=>ring.hidden=true,750);try{await track.applyConstraints({advanced:[{pointsOfInterest:[{x,y}],focusMode:'single-shot'}]})}catch(err){/* focagem opcional */}});
