@@ -49,7 +49,17 @@ $('gallery-start').addEventListener('click',openGallery);
 $('photo-start').addEventListener('click',()=>{visible('welcome-actions',false);visible('photo-workspace',true);start();$('photo-workspace').scrollIntoView({behavior:'smooth',block:'start'})});
 $('back-home').addEventListener('click',()=>{stop();shot=null;home();visible('photo-workspace',false);visible('welcome-actions',true);note('Vamos guardar um momento especial?')});
 function line(ctx,x,y,w,h,color){ctx.fillStyle=color;ctx.fillRect(x,y,w,h)}
-function drawLogo(ctx,cx,cy,w,h){if(!logo)return;const ratio=560.71/407.6;const lw=Math.min(w,h*ratio),lh=lw/ratio;ctx.drawImage(logo,cx-lw/2,cy-lh/2,lw,lh)}
+function drawLogo(ctx,cx,cy,w,h){
+ if(!logo)return;
+ const ratio=560.71/407.6,lw=Math.min(w,h*ratio),lh=lw/ratio;
+ // Rasterizar o SVG a uma resolução maior evita o desfoque do redimensionamento direto.
+ const scale=3,off=document.createElement('canvas');
+ off.width=Math.max(1,Math.round(lw*scale));off.height=Math.max(1,Math.round(lh*scale));
+ const ox=off.getContext('2d');ox.imageSmoothingEnabled=true;ox.imageSmoothingQuality='high';
+ ox.drawImage(logo,0,0,off.width,off.height);
+ ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
+ ctx.drawImage(off,cx-lw/2,cy-lh/2,lw,lh);
+}
 function words(ctx,s,x,y,size,color){ctx.textAlign='center';ctx.fillStyle=color;ctx.font='italic '+Math.round(size)+'px Georgia,serif';ctx.fillText(s,x,y)}
 function render(){
  if(!shot)return;
