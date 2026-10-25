@@ -1,12 +1,38 @@
 (()=>{'use strict';
 const $=id=>document.getElementById(id),video=$('video'),preview=$('preview'),canvas=$('canvas'),native=$('native-camera'),view=$('camera-view'),msg=$('camera-msg');
-let stream=null,shot=null,frame='classic',mode='web',facing='environment',seq=0,zoom=1,hardware=false,logo=null,pinch=0;
+let stream=null,shot=null,frame='classic',mode='web',facing='environment',seq=0,zoom=1,hardware=false,logo=null,pinch=0,switching=false;
 const cameraUI=on=>document.body.classList.toggle('camera-active',on);const visible=(id,on)=>{$(id).hidden=!on};const step=n=>document.querySelectorAll('[data-step]').forEach(el=>{const k=Number(el.dataset.step);el.classList.toggle('current',k===n);el.classList.toggle('done',k<n);el.setAttribute('aria-current',k===n?'step':'false')});const note=t=>{msg.textContent=t;msg.hidden=false};
 const logoImage=new Image();logoImage.onload=()=>{logo=logoImage;if(shot)render()};logoImage.src='assets/logo-casamento.svg';
 function stop(){seq++;if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}video.pause();video.srcObject=null}
 function home(){cameraUI(false);step(1);visible('initial-controls',true);visible('live-controls',false);visible('editing',false);video.hidden=true;preview.hidden=true}
 function setZoom(v){zoom=Math.max(1,Math.min(3,Number(v)));$('zoom').value=zoom;$('zoom-value').textContent=zoom.toFixed(1)+'×';if(stream&&hardware){const track=stream.getVideoTracks()[0];const caps=track.getCapabilities?.().zoom;if(caps){const target=Math.max(caps.min,Math.min(caps.max,zoom));track.applyConstraints({advanced:[{zoom:target}]}).catch(()=>{hardware=false;video.style.transform='scale('+zoom+')'})}}else video.style.transform='scale('+zoom+')'}
-async function start(){step(1);visible('welcome-actions',false);visible('photo-workspace',true);mode='web';stop();home();cameraUI(true);video.style.transform='';zoom=1;note('A abrir a câmara…');const id=seq;if(!navigator.mediaDevices?.getUserMedia){note('Este navegador não permite usar a câmara. Abre o site em HTTPS.');return}try{const s=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:facing},width:{ideal:1920},height:{ideal:1440}},audio:false});if(id!==seq){s.getTracks().forEach(t=>t.stop());return}stream=s;video.srcObject=s;video.hidden=false;await video.play();if(id!==seq)return;const caps=s.getVideoTracks()[0].getCapabilities?.()||{};hardware=!!caps.zoom;visible('initial-controls',false);visible('live-controls',true);msg.hidden=true;setZoom(1);$('focus-help').textContent=caps.pointsOfInterest?'Toca na imagem para tentar focar. Usa dois dedos para zoom.':'Usa dois dedos para zoom. A focagem manual depende do telemóvel.'}catch(e){home();note('Não foi possível abrir a câmara: '+(e.name==='NotAllowedError'?'autoriza o acesso à câmara nas permissões do navegador.':e.name==='NotFoundError'?'não foi encontrada nenhuma câmara.':'tenta outro navegador ou a captura do telemóvel.'))}}
+async function start(requestedFacing=facing,isSwitch=false){
+ step(1);visible('welcome-actions',false);visible('photo-workspace',true);mode='web';stop();home();cameraUI(true);video.style.transform='';zoom=1;note(isSwitch?'A trocar de câmara…':'A abrir a câmara…');const id=seq;
+ if(!navigator.mediaDevices?.getUserMedia){cameraUI(false);note('Este navegador não permite usar a câmara. Abre o site em HTTPS.');return false}
+ // Alguns navegadores Android precisam de libertar o hardware antes de alternar câmaras.
+ if(isSwitch)await new Promise(resolve=>setTimeout(resolve,280));
+ const attempts=[
+  {video:{facingMode:{ideal:requestedFacing},width:{ideal:1280},height:{ideal:960}},audio:false},
+  {video:{facingMode:requestedFacing},audio:false},
+  ...(isSwitch?[]:[{video:true,audio:false}])
+ ];
+ let lastError=null;
+ for(const constraints of attempts){
+  if(id!==seq)return false;
+  try{
+   const opened=await navigator.mediaDevices.getUserMedia(constraints);
+   if(id!==seq){opened.getTracks().forEach(t=>t.stop());return false}
+   stream=opened;video.srcObject=opened;video.hidden=false;await video.play();
+   if(id!==seq)return false;
+   const caps=opened.getVideoTracks()[0].getCapabilities?.()||{};
+   hardware=!!caps.zoom;facing=requestedFacing;visible('initial-controls',false);visible('live-controls',true);msg.hidden=true;setZoom(1);
+   $('focus-help').textContent=caps.pointsOfInterest?'Toca na imagem para tentar focar. Usa dois dedos para zoom.':'Usa dois dedos para zoom. A focagem manual depende do telemóvel.';
+   return true;
+  }catch(e){lastError=e;if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}video.srcObject=null}
+ }
+ home();note('Não foi possível abrir a câmara ('+(lastError?.name||'erro desconhecido')+'). '+(lastError?.name==='NotAllowedError'?'Confirma as permissões do navegador.':'Experimenta a câmara do telemóvel.'));
+ return false;
+}
 function setShot(c){cameraUI(false);step(2);visible('welcome-actions',false);visible('photo-workspace',true);shot=c;stop();video.style.transform='';video.hidden=true;visible('initial-controls',false);visible('live-controls',false);visible('editing',true);msg.hidden=true;render()}
 function snap(){if(!stream||!video.videoWidth){note('Aguarda pela imagem da câmara.');return}const c=document.createElement('canvas');const w=video.videoWidth,h=video.videoHeight;c.width=w;c.height=h;const ctx=c.getContext('2d');if(!hardware&&zoom>1){const sw=w/zoom,sh=h/zoom;ctx.drawImage(video,(w-sw)/2,(h-sh)/2,sw,sh,0,0,w,h)}else ctx.drawImage(video,0,0,w,h);setShot(c)}
 function openNative(){cameraUI(false);step(1);visible('welcome-actions',false);visible('photo-workspace',true);mode='native';stop();home();native.value='';native.click()}
@@ -63,7 +89,7 @@ function render(){
  $('frame-name').textContent={classic:'Moldura clássica em cobre e champanhe',polaroid:'Polaroid romântica',minimal:'Minimalista com monograma',none:'Fotografia sem moldura'}[frame];
 }
 function download(c,name){step(3);c.toBlob(blob=>{if(!blob){step(2);note('Não foi possível preparar o ficheiro.');return}const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),15000)},'image/jpeg',.93)}
-$('start').addEventListener('click',start);$('native-start').addEventListener('click',openNative);$('flip').addEventListener('click',()=>{facing=facing==='environment'?'user':'environment';start()});$('snap').addEventListener('click',snap);$('close-camera').addEventListener('click',()=>{stop();home();visible('photo-workspace',false);visible('welcome-actions',true);note('Podes voltar a abrir a câmara ou escolher uma fotografia.');});$('zoom').addEventListener('input',e=>setZoom(e.target.value));$('retry').addEventListener('click',()=>{shot=null;home();note('Vamos tirar outra fotografia?');if(mode==='web')start();else if(mode==='gallery')openGallery();else openNative()});
+$('start').addEventListener('click',start);$('native-start').addEventListener('click',openNative);$('flip').addEventListener('click',async()=>{if(switching)return;switching=true;$('flip').disabled=true;const previous=facing,next=previous==='environment'?'user':'environment';const ok=await start(next,true);if(!ok){const restored=await start(previous,true);if(restored)note('Não foi possível trocar de câmara. A anterior foi recuperada.')}switching=false;$('flip').disabled=false});$('snap').addEventListener('click',snap);$('close-camera').addEventListener('click',()=>{stop();home();visible('photo-workspace',false);visible('welcome-actions',true);note('Podes voltar a abrir a câmara ou escolher uma fotografia.');});$('zoom').addEventListener('input',e=>setZoom(e.target.value));$('retry').addEventListener('click',()=>{shot=null;home();note('Vamos tirar outra fotografia?');if(mode==='web')start();else if(mode==='gallery')openGallery();else openNative()});
 view.addEventListener('click',async e=>{if(!stream)return;const track=stream.getVideoTracks()[0],caps=track.getCapabilities?.()||{};if(!caps.pointsOfInterest)return;const r=view.getBoundingClientRect(),x=(e.clientX-r.left)/r.width,y=(e.clientY-r.top)/r.height;const ring=$('focus-ring');ring.style.left=(x*100)+'%';ring.style.top=(y*100)+'%';ring.hidden=false;setTimeout(()=>ring.hidden=true,750);try{await track.applyConstraints({advanced:[{pointsOfInterest:[{x,y}],focusMode:'single-shot'}]})}catch(err){/* focagem opcional */}});
 view.addEventListener('touchstart',e=>{if(e.touches.length===2)pinch=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY)}, {passive:true});view.addEventListener('touchmove',e=>{if(e.touches.length===2&&stream&&pinch){e.preventDefault();const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);setZoom(zoom*d/pinch);pinch=d}}, {passive:false});view.addEventListener('touchend',()=>pinch=0);
 document.querySelectorAll('[data-frame]').forEach(b=>b.addEventListener('click',()=>{frame=b.dataset.frame;render()}));$('download-original').addEventListener('click',()=>shot&&download(shot,'daniela-pedro-original.jpg'));$('download-framed').addEventListener('click',()=>shot&&download(canvas,'daniela-pedro-moldura.jpg'));window.addEventListener('pagehide',stop);
